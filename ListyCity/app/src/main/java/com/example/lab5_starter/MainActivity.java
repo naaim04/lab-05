@@ -1,6 +1,8 @@
 package com.example.lab5_starter;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
@@ -11,6 +13,11 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements CityDialogFragment.CityDialogListener {
@@ -20,6 +27,9 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
     private ArrayList<City> cityArrayList;
     private ArrayAdapter<City> cityArrayAdapter;
+    private FirebaseFirestore db;
+    private CollectionReference citiesRef;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +42,26 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
             return insets;
         });
 
+        db = FirebaseFirestore.getInstance();
+        citiesRef = db.collection("cities");
+
+        citiesRef.addSnapshotListener((value, error) -> {
+            if (error != null) {
+
+                Log.e("Firestore", error.toString());
+            }
+            if (value != null) {
+                cityArrayList.clear();
+                for(QueryDocumentSnapshot snapshot : value){
+                    String name = snapshot.getString("name");
+                    String province = snapshot.getString("province");
+
+                    cityArrayList.add(new City(name, province));
+                }
+                cityArrayAdapter.notifyDataSetChanged();
+            }
+        });
+
         // Set views
         addCityButton = findViewById(R.id.buttonAddCity);
         cityListView = findViewById(R.id.listviewCities);
@@ -40,8 +70,6 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
         cityArrayList = new ArrayList<>();
         cityArrayAdapter = new CityArrayAdapter(this, cityArrayList);
         cityListView.setAdapter(cityArrayAdapter);
-
-        addDummyData();
 
         // set listeners
         addCityButton.setOnClickListener(view -> {
@@ -55,6 +83,10 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
             cityDialogFragment.show(getSupportFragmentManager(),"City Details");
         });
 
+        Button deleteCityButton = findViewById(R.id.buttonDeleteCity);
+
+        deleteCityButton.setOnClickListener(v -> showDeleteCityDialog());
+
     }
 
     @Override
@@ -65,19 +97,40 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
         // Updating the database using delete + addition
     }
-
     @Override
     public void addCity(City city){
         cityArrayList.add(city);
         cityArrayAdapter.notifyDataSetChanged();
 
-    }
+        DocumentReference docRef = citiesRef.document(city.getName());
+        docRef.set(city);
 
+    }
     public void addDummyData(){
         City m1 = new City("Edmonton", "AB");
         City m2 = new City("Vancouver", "BC");
         cityArrayList.add(m1);
         cityArrayList.add(m2);
         cityArrayAdapter.notifyDataSetChanged();
+    }
+    private void showDeleteCityDialog() {
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select a city to delete");
+
+        ArrayAdapter<City> dialogAdapter =
+                new ArrayAdapter<>(this,
+                        android.R.layout.simple_list_item_1,
+                        cityArrayList);
+
+        builder.setAdapter(dialogAdapter, (dialog, which) -> {
+            City cityToDelete = cityArrayList.get(which);
+
+            db.collection("cities")
+                    .document(cityToDelete.getName())
+                    .delete();
+        });
+
+        builder.show();
     }
 }

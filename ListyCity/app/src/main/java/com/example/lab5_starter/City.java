@@ -14,6 +14,10 @@ public class City implements Serializable {
         this.name = name;
         this.province = province;
     }
+    @Override
+    public String toString() {
+        return name;
+    }
 
     public String getProvince() {
         return province;
